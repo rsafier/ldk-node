@@ -104,10 +104,10 @@ pub(crate) fn export_channel_attestation(
 		.list_channels()
 		.into_iter()
 		.find(|c| c.channel_id == *channel_id)
-		.ok_or(Error::ChannelConfigUpdateFailed)?;
+		.ok_or(Error::ChannelCreationFailed)?;
 
 	// Locate the ChannelMonitor for this channel.
-	let monitor = chain_monitor.get_monitor(*channel_id).map_err(|_| Error::ChannelConfigUpdateFailed)?;
+	let monitor = chain_monitor.get_monitor(*channel_id).map_err(|_| Error::PersistenceFailed)?;
 	let ldk_funding = monitor.get_funding_txo();
 	// lightning::chain::transaction::OutPoint → bitcoin::OutPoint
 	let funding_outpoint = bitcoin::OutPoint {
@@ -127,7 +127,7 @@ pub(crate) fn export_channel_attestation(
 	// Extract the latest signed holder commitment tx. Despite the scary name, this
 	// method is pure read (no broadcast side-effect) — see rust-lightning's docs.
 	let signed_txs = monitor.unsafe_get_latest_holder_commitment_txn(logger.as_ref());
-	let signed_tx = signed_txs.into_iter().next().ok_or(Error::ChannelConfigUpdateFailed)?;
+	let signed_tx = signed_txs.into_iter().next().ok_or(Error::OnchainTxSigningFailed)?;
 
 	// Parse the funding-input witness: [empty, sig_A, sig_B, redeem_script].
 	let (funding_pk_a, funding_pk_b, sig_a, sig_b) = parse_funding_witness(&signed_tx)?;
@@ -142,7 +142,7 @@ pub(crate) fn export_channel_attestation(
 		} else if holder_funding_pubkey == funding_pk_b {
 			(funding_pk_a, sig_a)
 		} else {
-			return Err(Error::ChannelConfigUpdateFailed);
+			return Err(Error::InvalidPublicKey);
 		};
 
 	// Strip the witness from the commitment tx to produce the unsigned tx a verifier
@@ -202,22 +202,22 @@ pub(crate) fn export_channel_attestation(
 /// Returns `(pk_lex0, pk_lex1, sig_pk_lex0, sig_pk_lex1)`. Both signatures include
 /// a trailing SIGHASH byte which is stripped before parsing into `Signature`.
 fn parse_funding_witness(tx: &Transaction) -> Result<(PublicKey, PublicKey, Signature, Signature), Error> {
-	let input = tx.input.first().ok_or(Error::ChannelConfigUpdateFailed)?;
+	let input = tx.input.first().ok_or(Error::OnchainTxCreationFailed)?;
 	let witness = &input.witness;
 	if witness.len() != 4 {
-		return Err(Error::ChannelConfigUpdateFailed);
+		return Err(Error::OnchainTxCreationFailed);
 	}
-	let sig_a_bytes = witness.nth(1).ok_or(Error::ChannelConfigUpdateFailed)?;
-	let sig_b_bytes = witness.nth(2).ok_or(Error::ChannelConfigUpdateFailed)?;
-	let redeem_script_bytes = witness.nth(3).ok_or(Error::ChannelConfigUpdateFailed)?;
+	let sig_a_bytes = witness.nth(1).ok_or(Error::OnchainTxCreationFailed)?;
+	let sig_b_bytes = witness.nth(2).ok_or(Error::OnchainTxCreationFailed)?;
+	let redeem_script_bytes = witness.nth(3).ok_or(Error::OnchainTxCreationFailed)?;
 
 	// DER + SIGHASH byte → strip last byte.
-	let sig_a = parse_der_sig(sig_a_bytes).ok_or(Error::ChannelConfigUpdateFailed)?;
-	let sig_b = parse_der_sig(sig_b_bytes).ok_or(Error::ChannelConfigUpdateFailed)?;
+	let sig_a = parse_der_sig(sig_a_bytes).ok_or(Error::InvoiceCreationFailed)?;
+	let sig_b = parse_der_sig(sig_b_bytes).ok_or(Error::InvoiceCreationFailed)?;
 
 	// Parse multisig redeem script: OP_2 <33> pk_a <33> pk_b OP_2 OP_CHECKMULTISIG.
 	let (pk_a, pk_b) = parse_2of2_redeem_script(redeem_script_bytes)
-		.ok_or(Error::ChannelConfigUpdateFailed)?;
+		.ok_or(Error::ChannelClosingFailed)?;
 
 	Ok((pk_a, pk_b, sig_a, sig_b))
 }
