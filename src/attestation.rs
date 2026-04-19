@@ -242,13 +242,18 @@ fn parse_der_sig(bytes: &[u8]) -> Option<Signature> {
 ///   OP_CHECKMULTISIG (0xae)
 /// ```
 fn parse_2of2_redeem_script(bytes: &[u8]) -> Option<(PublicKey, PublicKey)> {
+	// Layout: OP_2 (0x52) | 0x21 (push 33) | pk_a[33] | 0x21 (push 33) | pk_b[33]
+	//         | OP_2 (0x52) | OP_CHECKMULTISIG (0xae).  Total = 71 bytes.
 	if bytes.len() != 71 {
 		return None;
 	}
-	if bytes[0] != 0x52 || bytes[68] != 0x52 || bytes[69..] != [0xae] && bytes[69] != 0xae {
+	if bytes[0] != 0x52 {
 		return None;
 	}
-	if bytes[1] != 33 || bytes[35] != 33 {
+	if bytes[1] != 0x21 || bytes[35] != 0x21 {
+		return None;
+	}
+	if bytes[69] != 0x52 || bytes[70] != 0xae {
 		return None;
 	}
 	let pk_a = PublicKey::from_slice(&bytes[2..35]).ok()?;
