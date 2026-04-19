@@ -39,7 +39,7 @@ default = []
 #lightning-liquidity = { version = "0.2.0", features = ["std"] }
 #lightning-macros = { version = "0.2.0" }
 
-lightning = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "38a62c32454d3eac22578144c479dbf9a6d9bff6", features = ["std"] }
+lightning = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "38a62c32454d3eac22578144c479dbf9a6d9bff6", features = ["std", "unsafe_revoked_tx_signing"] }
 lightning-types = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "38a62c32454d3eac22578144c479dbf9a6d9bff6" }
 lightning-invoice = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "38a62c32454d3eac22578144c479dbf9a6d9bff6", features = ["std"] }
 lightning-net-tokio = { git = "https://github.com/lightningdevkit/rust-lightning", rev = "38a62c32454d3eac22578144c479dbf9a6d9bff6" }
@@ -131,6 +131,21 @@ check-cfg = [
 [[bench]]
 name = "payments"
 harness = false
+
+# Redirect every rust-lightning git dep above to our fork that exposes
+# ChannelMonitor::channel_keys_id (RFC: expose channel attestation data).
+[patch.'https://github.com/lightningdevkit/rust-lightning']
+lightning = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-types = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-invoice = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-net-tokio = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-persister = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-background-processor = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-rapid-gossip-sync = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-block-sync = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-transaction-sync = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-liquidity = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
+lightning-macros = { git = "https://github.com/rsafier/rust-lightning.git", branch = "rfc/channel-keys-id-accessor" }
 
 #[patch.crates-io]
 #lightning = { path = "../rust-lightning/lightning" }
