@@ -80,6 +80,7 @@
 #![allow(ellipsis_inclusive_range_patterns)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+pub mod attestation;
 mod balance;
 mod builder;
 mod chain;
@@ -1091,6 +1092,42 @@ impl Node {
 	/// Retrieve a list of known channels.
 	pub fn list_channels(&self) -> Vec<ChannelDetails> {
 		self.channel_manager.list_channels().into_iter().map(|c| c.into()).collect()
+	}
+
+	/// Export a cryptographically-verifiable bundle describing the current state of a channel:
+	/// the unsigned commitment transaction we would broadcast on force-close, the counterparty's
+	/// latest ECDSA signature over it (BIP-143 sighash), both funding pubkeys distinguishably,
+	/// balances, and pending HTLCs. See [`attestation::ChannelAttestation`] for the full shape
+	/// and verification model.
+	///
+	/// This is the API the `lightning-attestor` project (and the upstream RFC of the same scope)
+	/// consumes to assemble operator-signed, regulator-verifiable channel-state artifacts.
+	///
+	/// Exposes no secret material — the returned signature is the counterparty's, which is
+	/// cryptographically attributable to them regardless of who holds it.
+	pub fn export_channel_attestation(
+		&self, channel_id: &lightning::ln::types::ChannelId,
+	) -> Result<attestation::ChannelAttestation, Error> {
+		attestation::export_channel_attestation(
+			&self.channel_manager,
+			&self.chain_monitor,
+			&self.keys_manager,
+			&self.logger,
+			channel_id,
+		)
+	}
+
+	/// Convenience: export [`ChannelAttestation`] for every known channel.
+	///
+	/// Channels that cannot be attested (e.g. mid-setup, no funding tx yet) are silently skipped.
+	///
+	/// [`ChannelAttestation`]: attestation::ChannelAttestation
+	pub fn list_channel_attestations(&self) -> Vec<attestation::ChannelAttestation> {
+		self.channel_manager
+			.list_channels()
+			.into_iter()
+			.filter_map(|c| self.export_channel_attestation(&c.channel_id).ok())
+			.collect()
 	}
 
 	/// Connect to a node on the peer-to-peer network.
